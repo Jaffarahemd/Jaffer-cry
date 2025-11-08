@@ -1,0 +1,7 @@
+"dependencies": {
+  "express": "^4.19.2",
+  "pino": "^9.3.0",
+  "node-fetch": "^3.3.2",
+  "@adiwajshing/baileys": "^6.6.7",
+  "qrcode-terminal": "^0.12.0"
+}
