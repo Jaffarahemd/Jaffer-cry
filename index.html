@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Servus Yadav - WhatsApp Bot</title>
+  <style>
+    body{font-family:Inter, system-ui, Arial; max-width:900px;margin:24px auto;padding:16px}
+    header{display:flex;align-items:center;gap:12px}
+    h1{margin:0;font-size:20px}
+    .card{border-radius:12px;padding:12px;margin:12px 0;background:#f7f7f7}
+    label{display:block;margin-top:8px;font-weight:600}
+    input,button,textarea{padding:8px;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box}
+    .row{display:flex;gap:8px}
+    .small{width:140px}
+    .log{height:120px;overflow:auto;background:#111;color:#bfb;border-radius:8px;padding:8px;font-family:monospace}
+  </style>
+</head>
+<body>
+  <header>
+    <div style="font-size:28px">👋</div>
+    <div>
+      <h1>Welcome, Servus Yadav</h1>
+      <div id="status">Status: <span id="conn">Unknown</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <strong>Check / Normalize JID</strong>
+    <input id="jidInput" placeholder="Enter phone (eg. 9198... ) or full JID" />
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button id="checkJidBtn">Check JID</button>
+      <button id="normBtn">Normalize</button>
+    </div>
+    <div id="jidResult" style="margin-top:8px;color:#333"></div>
+  </div>
+
+  <div class="card">
+    <strong>Send a single message (10s delay)</strong>
+    <label>To (phone or JID)</label>
+    <input id="sendTo" placeholder="9198... or 1203...@g.us" />
+    <label>Message</label>
+    <textarea id="sendMsg" rows="3">Hello from Servus Yadav's bot</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="sendBtn">Send (10s delay)</button>
+    </div>
+    <div id="sendRes" style="margin-top:8px;color:green"></div>
+  </div>
+
+  <div class="card">
+    <strong>Upload .txt file (each line sent with 10s delay)</strong>
+    <label>To (phone or JID)</label>
+    <input id="bulkTo" placeholder="9198... or group jid" />
+    <label>Choose .txt file</label>
+    <input id="fileInput" type="file" accept=".txt" />
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="uploadBtn">Upload & Start</button>
+    </div>
+    <div id="bulkStatus" style="margin-top:8px;color:blue"></div>
+  </div>
+
+  <div class="card">
+    <strong>Live log</strong>
+    <div id="log" class="log">Waiting for events...</div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    function log(...args){ const s = args.map(a => typeof a==='object'?JSON.stringify(a):String(a)).join(' '); logEl.textContent = new Date().toLocaleTimeString() + ' - ' + s + '\n' + logEl.textContent; }
+
+    const es = new EventSource('/events');
+    es.onopen = () => { document.getElementById('conn').textContent = 'Connected to server'; log('SSE connected'); };
+    es.onerror = () => { document.getElementById('conn').textContent = 'Disconnected'; log('SSE error'); };
+    es.onmessage = (evt) => { try { const d = JSON.parse(evt.data); handleEvent(d); } catch(e){ log('raw', evt.data); } };
+
+    function handleEvent(d){
+      if (!d) return;
+      if (d.type === 'status') {
+        document.getElementById('conn').textContent = d.connection === 'open' ? 'WhatsApp Connected ✅' : 'WhatsApp ' + d.connection;
+      } else if (d.type === 'qr') {
+        log('QR printed to logs. Scan it from Render logs.');
+        document.getElementById('conn').textContent = 'Scan QR (check logs)';
+      } else if (d.type === 'message') {
+        log('Incoming message', d.data.remoteJid, d.data.message);
+      } else if (d.type === 'send') {
+        log('Sent to', d.to);
+      } else if (d.type === 'bulkStart') {
+        document.getElementById('bulkStatus').textContent = `Started bulk send to ${d.to} — total ${d.total}`;
+        log('Bulk start', d);
+      } else if (d.type === 'bulkProgress') {
+        document.getElementById('bulkStatus').textContent = `Sent ${d.index}/${d.total}: ${d.line}`;
+        log('Bulk progress', d.index + '/' + d.total, d.line);
+      } else if (d.type === 'bulkDone') {
+        document.getElementById('bulkStatus').textContent = `Completed ${d.total} messages`;
+        log('Bulk done', d);
+      } else if (d.type === 'bulkError') {
+        log('Bulk error', d.index, d.error);
+      }
+    }
+
+    document.getElementById('checkJidBtn').onclick = async () => {
+      const v = document.getElementById('jidInput').value.trim();
+      const r = await fetch('/check-jid', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ jid: v }) });
+      const j = await r.json();
+      document.getElementById('jidResult').textContent = JSON.stringify(j);
+      log('Check JID', j);
+    };
+
+    document.getElementById('normBtn').onclick = () => {
+      const v = document.getElementById('jidInput').value.trim();
+      if (!v) return alert('Enter value');
+      if (v.includes('@')) return alert('Normalized: ' + v);
+      if (/^\d+$/.test(v)) return alert('Normalized: ' + v + '@s.whatsapp.net');
+      alert('Could not normalize');
+    };
+
+    document.getElementById('sendBtn').onclick = async () => {
+      const to = document.getElementById('sendTo').value.trim();
+      const message = document.getElementById('sendMsg').value.trim();
+      if (!to || !message) return alert('Enter to and message');
+      document.getElementById('sendRes').textContent = 'Sending...';
+      const r = await fetch('/send', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ to, message, delayMs: 10000 }) });
+      const j = await r.json();
+      document.getElementById('sendRes').textContent = j.ok ? 'Sent' : ('Error: ' + (j.error||'unknown'));
+      log('Send result', j);
+    };
+
+    document.getElementById('uploadBtn').onclick = async () => {
+      const to = document.getElementById('bulkTo').value.trim();
+      const file = document.getElementById('fileInput').files[0];
+      if (!to || !file) return alert('Provide destination and a .txt file');
+      const fd = new FormData(); fd.append('file', file); fd.append('to', to); fd.append('delayMs', '10000');
+      document.getElementById('bulkStatus').textContent = 'Uploading...';
+      const r = await fetch('/upload-lines', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (j.ok) { document.getElementById('bulkStatus').textContent = 'Upload accepted — sending will start. Total lines: ' + j.lines; }
+      else { document.getElementById('bulkStatus').textContent = 'Error: ' + (j.error||'unknown'); }
+      log('Upload response', j);
+    };
+  </script>
+</body>
+</html>
