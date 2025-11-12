@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-group-uid-fetcher",
+  "version": "1.0.0",
+  "description": "WhatsApp group UID fetcher and message sender using Baileys with multi-session, auto-reconnect, and task control.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.7",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "pino": "^8.14.1",
+    "pino-pretty": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
